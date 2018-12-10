@@ -162,6 +162,38 @@ class BlockChain{
      });
     });
     }
+    /**
+ * @function getBlockByHash
+ * @description Gets a block by si hash and returns it as JSON string object
+ * @param {hash} a sha256 hash 
+ * @returns {JSON} success or false on Error Message
+ * @author Ernesto Bonet <ebonet@eabonet.com>
+ * @version 0.1
+ */
+
+    getBlockByHash(hash){
+        return new Promise((resolve,reject)=>{
+     level.getBlockByHash(hash).then((block)=>{
+         resolve(block);
+     })
+     .catch((error)=>{
+        console.log(error);
+        reject(Error(Error(`Block  hash ${hash} not found!!! `)));
+     });
+    });
+    }
+    
+    getBlockByWalletAddress(address){
+        return new Promise((resolve,reject)=>{
+     level.getBlockByWalletAddress(address).then((block)=>{
+         resolve(block);
+     })
+     .catch((error)=>{
+        console.log(error);
+        reject(Error(Error(`Block  hash ${hash} not found!!! `)));
+     });
+    });
+    }
  
     /**
  * @function validateBlock

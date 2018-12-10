@@ -61,23 +61,13 @@ class BlockController {
        this.status = {
 
        };
-        /*this.app.use(session({
-            name: 'session',
-            keys: ['key1', 'key2'],
-            cookie: {
-              secure: true,
-              httpOnly: true,
-              domain: 'example.com',
-              path: 'foo/bar',
-              expires: expiryDate
-            }
-          }))*/
-        // this.blocks = [];
-        // this.initializeMockData();
+ 
         this.getBlockByIndex();
         this.postNewBlock();
         this.requestValidation();
         this.validRequest();
+        this.getBlockByHash();
+        this.getBlockByWalletAddress();
         this.blockchain = new BlockChain();
     }
 
@@ -95,19 +85,31 @@ class BlockController {
             res.setHeader('Conection', 'close');
             res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/block/:index', secure: true });
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
-             this.blockchain.getBlock(req.params.index).then((block)=>{
-                 block = JSON.parse(block);
-                 block.body.star.story = hex2ascii(block.body.star.story);
-                block = JSON.stringify(block);
-                res.end(block);
-             }).
-             catch((error)=>{
-              console.log(error);
-              res(error);
-              logger.error(error.toString);
-              process.exit(1);
-             });
-   
+               this.blockchain.getBlockHeight().then((height) => {
+                if(parseInt(height) > parseInt(req.params.index)){
+                 this.blockchain.getBlock(req.params.index)
+                 .then((block)=>{
+                     block = JSON.parse(block);
+                     block.body.star.story = hex2ascii(block.body.star.story);
+                     block = JSON.stringify(block);
+                    res.end(block);
+                 })
+                 .catch((error)=>{
+                    console.log(error);
+                   res.send(error);
+                    process.exit(1);
+                });
+                
+               }
+               else{
+                  res.send(`Index block  ${req.params.index} out of bounds`);
+                } 
+               }).catch((error)=>{
+                   console.log(error);
+                  res.send(error);
+                   process.exit(1);
+               });
+       
         });
     }
 
@@ -137,11 +139,13 @@ class BlockController {
                               dec:req.body.star.dec,
                             //   mag: req.star.mag,
                             //   cen: req.star.cen,
-                              story: Buffer.alloc(req.body.star.story).toString('hex')
+                              story: Buffer.from(req.body.star.story).toString('hex')
                       }
                };
                 this.blockchain.addBlock(body).then((block)=>{
-                    block.story  = hex2ascii(obj.body.star.story);
+                    block = JSON.parse(block);
+                    block.body.star.story = hex2ascii(block.body.star.story);
+                    block = JSON.stringify(block);
                     res.send(block);
                 }).catch((error)=>{
                     console.log(error);
@@ -278,23 +282,46 @@ class BlockController {
      * Implement a POST Endpoint -Get star block by wallet address , url: "localhost:8000/stars/hash:a59e9e399bc17c2db32a7a87379a8012f2c8e08dd661d7c0a6a4845d4f3ffb9f"
      */
 
-    getBlockByWalletAddress(){
-        this.app.post("/stars/:hash", (req, res)=>{
-            console.log('Requested /block/:index');
-            if (empty(req.body)) return res.sendStatus(400).end();
+    getBlockByHash(){
+        // this.app.post("/stars/hash/:hash", (req, res)=>{
+        this.app.get("/stars/hash/:hash", (req, res)=>{
+            console.log('Requested /stars/hash/');
+            if (empty(req.params.hash)) return res.sendStatus(400).end();
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.setHeader('cache-control', 'no-cache');
             res.setHeader('Content-Length', '238');
             res.setHeader('Conection', 'close');
-            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/block/:index', secure: true });
+            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/stars/:hash', secure: true });
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
-            this.blockchain.getBlock(req.body.wallet || `Testing Rest Api`).then((value)=>{
-                res.send(value);
+            this.blockchain.getBlockByHash(req.params.hash).then((block)=>{
+               (block) ?res.send(block): res.send(`Block not found with hash ${req.params.hash} criteria`);
             }).catch((error)=>{
                 console.log(error);
-                 res.send('There was an issue with your request. Try again later');
+                 res.send('There was an issue with your request. Please try again later');
                  logger.error(error.toString);
-                 process.exit(1)
+                //  process.exit(1)
+            })
+            
+        });
+    }
+
+    getBlockByWalletAddress(){
+        this.app.get("/stars/address/:address", (req, res)=>{
+            console.log('Requested /stars/address/:address');
+            if (empty(req.params.address)) return res.sendStatus(400).end();
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.setHeader('cache-control', 'no-cache');
+            res.setHeader('Content-Length', '238');
+            res.setHeader('Conection', 'close');
+            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/stars/:address', secure: true });
+            res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
+            this.blockchain.getBlockByWalletAddress(req.params.address).then((block)=>{
+                (block) ?res.send(block): res.send(`Block not found with wallet address ${req.params.address} criteria`);
+            }).catch((error)=>{
+                console.log(error);
+                 res.send('There was an issue with your request. Please try again later');
+                 logger.error(error.toString);
+                //  process.exit(1)
             })
             
         });

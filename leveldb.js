@@ -77,12 +77,33 @@ return new Promise((resolve,reject)=>{
 },
 // Get block by hash
 getBlockByHash(hash) {
-  let self = this;
+  // let self = this;
   let block = null;
   return new Promise(function(resolve, reject){
-      self.db.createReadStream()
+      db.createReadStream()
       .on('data', function (data) {
+           data = JSON.parse(data.value);
           if(data.hash === hash){
+              block = data;
+          }
+      })
+      .on('error', function (err) {
+          reject(err)
+      })
+      .on('close', function () {
+          resolve(block);
+      });
+  });
+},
+// Get block by address
+getBlockByWalletAddress(address) {
+  // let self = this;
+  let block = null;
+  return new Promise(function(resolve, reject){
+      db.createReadStream()
+      .on('data', function (data) {
+        data = JSON.parse(data.value);
+          if(data.body.address === address){
               block = data;
           }
       })
