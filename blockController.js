@@ -58,10 +58,7 @@ class BlockController {
        this.timeoutRequests = new Map();
        this.registerStar = true;
        this.validationWindow = 0;
-       this.status = {
-
-       };
- 
+       this.status = {};
         this.getBlockByIndex();
         this.postNewBlock();
         this.requestValidation();
@@ -130,7 +127,6 @@ class BlockController {
             res.setHeader('Conection', 'close');
             res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/block/:index', secure: true });
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
-          
             if(this.verifyAddressRequest(req.body.address)){
                 let body = {
                     address: req.body.address,
@@ -176,7 +172,6 @@ class BlockController {
             res.setHeader('Conection', 'close');
             res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/message-signature/validate', secure: true });
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
-
             this.validateRequestByWallet(req);
             let timeOut = this.timeoutRequests.get(req.body.address);
             this.removeValidationRequest(req.body.address); 
@@ -194,6 +189,7 @@ class BlockController {
         });
     
     }
+    
 
     requestObject (req){
         this.validationWindow = req.validationWindow;
@@ -210,6 +206,7 @@ class BlockController {
     address = req.body.address;
    let requestTimeStamp = this.timeoutRequests.get(address);
    let message =  `${address}:${requestTimeStamp}:starRegistry`;
+   let message =  `Hello BlockChain`;
    let isValid = bitcoinMessage.verify(message, address, signature);
    this.registerStar = true;
    this.status = {
@@ -228,7 +225,8 @@ class BlockController {
        let timeLeft = (TimeoutRequestsWindowTime/1000) - timeElapse;
        req.validationWindow = timeLeft;
         setTimeout(function(){
-             this.removeValidationRequest(req.body.address); 
+            this.timeoutRequests.delete(req.body.address);
+            //  this.removeValidationRequest(req.body.address); 
             },
              TimeoutRequestsWindowTime 
              );
@@ -291,7 +289,7 @@ class BlockController {
             res.setHeader('cache-control', 'no-cache');
             res.setHeader('Content-Length', '238');
             res.setHeader('Conection', 'close');
-            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/stars/:hash', secure: true });
+            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/stars/hash//:hash', secure: true });
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
             this.blockchain.getBlockByHash(req.params.hash).then((block)=>{
                (block) ?res.send(block): res.send(`Block not found with hash ${req.params.hash} criteria`);
@@ -313,7 +311,7 @@ class BlockController {
             res.setHeader('cache-control', 'no-cache');
             res.setHeader('Content-Length', '238');
             res.setHeader('Conection', 'close');
-            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/stars/:address', secure: true });
+            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/stars/address/:address', secure: true });
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
             this.blockchain.getBlockByWalletAddress(req.params.address).then((block)=>{
                 (block) ?res.send(block): res.send(`Block not found with wallet address ${req.params.address} criteria`);
