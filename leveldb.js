@@ -5,6 +5,7 @@
 let level = require('level');
 let chainDB = './chaindata';
 let db = level(chainDB);
+const hex2ascii = require('hex2ascii');
 let  persistent= {
 // Add data to levelDB with key/value pair
  addLevelDBData:(key,value)=>{
@@ -84,7 +85,29 @@ getBlockByHash(hash) {
       .on('data', function (data) {
            data = JSON.parse(data.value);
           if(data.hash === hash){
+            data.body.star.storyDecoded = hex2ascii(data.body.star.story);
               block = data;
+          }
+      })
+      .on('error', function (err) {
+          reject(err)
+      })
+      .on('close', function () {
+          resolve(block);
+      });
+  });
+},
+getStarByToken(token) {
+  // let self = this;
+  let block = null;
+  return new Promise(function(resolve, reject){
+      db.createReadStream()
+      .on('data', function (data) {
+           data = JSON.parse(data.value);
+           if(data.height > 0){
+          if(data.body.star.story === token){
+              block = data;
+          }
           }
       })
       .on('error', function (err) {
@@ -104,6 +127,7 @@ getBlockByWalletAddress(address) {
       .on('data', function (data) {
         data = JSON.parse(data.value);
           if(data.body.address === address){
+            data.body.star.storyDecoded = hex2ascii(data.body.star.story);
               block = data;
           }
       })

@@ -182,6 +182,20 @@ class BlockChain{
      });
     });
     }
+
+
+
+    getStarByToken(token){
+    return new Promise((resolve, reject)=>{
+        level.getStarByToken(token).
+        then((star)=>{
+          resolve(star);
+        })
+    }).catch((error)=>{
+       console.error(error);
+       reject(error);
+    });
+    }
     
     getBlockByWalletAddress(address){
         return new Promise((resolve,reject)=>{

@@ -10,7 +10,6 @@ const bitcoin = require('bitcoinjs-lib');
 const bitcoinMessage = require('bitcoinjs-message');
 const hex2ascii = require('hex2ascii');
 let winston = require('winston');
-
 const levels = { 
     error: 0, 
     warn: 1, 
@@ -55,6 +54,7 @@ class BlockController {
         this.app.use(helmet());
         this.app.use(compression());
         this.mempool = new Map();
+        // this.mempool.set("address",'138rs99UXekmmBMuHCpQ8PriTFun64AC2T');
        this.timeoutRequests = new Map();
        this.registerStar = true;
        this.validationWindow = 0;
@@ -65,9 +65,9 @@ class BlockController {
         this.validRequest();
         this.getBlockByHash();
         this.getBlockByWalletAddress();
+        this.getStarByTokenId();
         this.blockchain = new BlockChain();
     }
-
     /**
      * Implement a GET Endpoint to retrieve a block by index, url: "/api/block/:index"
      */
@@ -106,17 +106,14 @@ class BlockController {
                   res.send(error);
                    process.exit(1);
                });
-       
         });
     }
-
     verifyAddressRequest(address){
         return (this.mempool.get('address') == address) ? true : false ;
     }
     /**
      * Implement a POST Endpoint to add a new Block, url: "/api/block"
      */
-   
      postNewBlock() {
         this.app.post("/block", (req, res)=>{
             if (empty(req.body.address)) return res.sendStatus(400).end();
@@ -133,14 +130,14 @@ class BlockController {
                     star: {
                               ra: req.body.star.ra,
                               dec:req.body.star.dec,
-                            //   mag: req.star.mag,
-                            //   cen: req.star.cen,
+                              mag: req.body.star.mag,
+                              cen: req.body.star.cen,
                               story: Buffer.from(req.body.star.story).toString('hex')
                       }
                };
                 this.blockchain.addBlock(body).then((block)=>{
                     block = JSON.parse(block);
-                    block.body.star.story = hex2ascii(block.body.star.story);
+                    block.body.star.storyDecoded = hex2ascii(block.body.star.story);
                     block = JSON.stringify(block);
                     res.send(block);
                 }).catch((error)=>{
@@ -156,11 +153,8 @@ class BlockController {
                  
         });
     }
-    
-
-    removeValidationRequest(wallet){
+        removeValidationRequest(wallet){
         this.timeoutRequests.delete(wallet);
-
     }
     validRequest(){
         this.app.post("/message-signature/validate", (req, res)=>{
@@ -173,9 +167,10 @@ class BlockController {
             res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/message-signature/validate', secure: true });
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
             this.validateRequestByWallet(req);
-            let timeOut = this.timeoutRequests.get(req.body.address);
+            let timeOut = this.getTimebyWallet(req.body.address);
             this.removeValidationRequest(req.body.address); 
-             res.send({
+             res.send(
+                 {
                 "registerStar": this.registerStar,
                 "status": {
                     "address": req.body.address,
@@ -185,43 +180,63 @@ class BlockController {
                     "messageSignature": true
                 }
             });
-                      
+        });             
+        }
+    getStarByTokenId(){
+        this.app.get('/star/:starTokenId',(req,res)=>{
+          /****
+           * ["Star power 103!", "I love my wonderful star", "ra_032.155", "dec_121.874", "mag_245.978"]
+           */
+          if (!req.params.starTokenId) return res.sendStatus(400);
+          console.log('Requested /star/:starTokenId');
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('cache-control', 'no-cache');
+          res.setHeader('Conection', 'close');
+          res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/block/:starTokenId', secure: true });
+          res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
+             this.blockchain.getStarByToken(req.params.starTokenId).then((star) => {
+                //    block = JSON.parse(star.body.star);
+                star.body.star.storyDecoded = hex2ascii(star.body.star.story);
+                 star = JSON.stringify(star.body.star);
+                //    block = JSON.stringify(block);
+                  res.end(star);
+             }).catch((error)=>{
+                 console.log(error);
+                res.send(error);
+                 process.exit(1);
+             });
         });
-    
     }
-    
-
     requestObject (req){
         this.validationWindow = req.validationWindow;
+        let time = this.getTimebyWallet(req.body.address);
       return  {
             "walletAddress": req.body.address,
-            "requestTimeStamp": this.timeoutRequests.get(req.body.address),
-            "message": `${req.body.address}:${this.timeoutRequests.get(req.body.address)}:starRegistry`,
+            "requestTimeStamp": time,
+            "message": `${req.body.address}:${time}:starRegistry`,
             "validationWindow": req.validationWindow
         };
     }
-
     validateRequestByWallet(req){
-   let signature = req.body.signature,
-    address = req.body.address;
-   let requestTimeStamp = this.timeoutRequests.get(address);
-   let message =  `${address}:${requestTimeStamp}:starRegistry`;
-   let message =  `Hello BlockChain`;
+   let signature = req.body.signature;
+   let message =  `${req.body.address}:${this.getTimebyWallet(req.body.address)}:starRegistry`;
+    let address = req.body.address;
+   let requestTimeStamp = this.getTimebyWallet(address);
    let isValid = bitcoinMessage.verify(message, address, signature);
    this.registerStar = true;
    this.status = {
    address: address,
    requestTimeStamp: requestTimeStamp,
    message: message,
-   validationWindow: 200,
-   messageSignature: isValid
+   validationWindow: this.validationWindow,
+   messageSignature: 'valid'
   };
 
-  this.mempool.set(address,this.status )
+    (isValid) ?this.mempool.set(address,this.status ):'';
+     
     }
-
     setTimeOut(req){
-       let timeElapse = (new Date().getTime().toString().slice(0,-3)) - this.timeoutRequests.get(req.body.address);
+       let timeElapse = parseFloat(new Date().getTime().toString().slice(0,-3)) - parseFloat(this.getTimebyWallet(req.body.address));
        let timeLeft = (TimeoutRequestsWindowTime/1000) - timeElapse;
        req.validationWindow = timeLeft;
         setTimeout(function(){
@@ -232,7 +247,6 @@ class BlockController {
              );
 
     }
-
     /**
      * Implement a POST Endpoint -Users start out by submitting a validation request , url: "/api/requestValidation"
      */
@@ -253,17 +267,41 @@ class BlockController {
             res.send(this.requestObject(req));
            }
            else{
+               let interval = parseFloat(new Date().getTime().toString().slice(0,-3)) - parseFloat(this.getTimebyWallet(req.body.address)) ;
             res.send(
-            {
-                "address":req.body.address
-            }
+                {
+                    "address": req.body.address,
+                    "requestTimeStamp": this.getTimebyWallet(req.body.address),
+                    "message": `${req.body.address}:${this.getTimebyWallet(req.body.address)}:starRegistry`,
+                    "validationWindow": 300 -  interval
+                }
             );
            }
             
         });
     }
+    getTimebyWallet(wallet){
+        let time = 0;
+        this.timeoutRequests.forEach((value, key, map)=>{
+          if(key == wallet){
+             time = value; 
+          }
+        });
+        return time;
+    }
+    AddressExist(wallet){
+        
+        let exist = false;
+      this.mempool.forEach((value, key, map)=> {
+        if(value == wallet){
+            exist = true;
+           }
+           
+      });
+      return exist;
+    }
     addRequestValidation(wallet){
-        let search = this.mempool.get(wallet);
+        let search = this.AddressExist(wallet);
         if(!search){
         this.mempool.set("address",wallet);
         this.timeoutRequests.set(wallet,new Date().getTime().toString().slice(0,-3));
@@ -289,7 +327,7 @@ class BlockController {
             res.setHeader('cache-control', 'no-cache');
             res.setHeader('Content-Length', '238');
             res.setHeader('Conection', 'close');
-            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/stars/hash//:hash', secure: true });
+            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/stars/hash/:hash', secure: true });
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
             this.blockchain.getBlockByHash(req.params.hash).then((block)=>{
                (block) ?res.send(block): res.send(`Block not found with hash ${req.params.hash} criteria`);
@@ -302,7 +340,6 @@ class BlockController {
             
         });
     }
-
     getBlockByWalletAddress(){
         this.app.get("/stars/address/:address", (req, res)=>{
             console.log('Requested /stars/address/:address');
@@ -324,7 +361,6 @@ class BlockController {
             
         });
     }
-
     /**
      * Help method to inizialized Mock dataset, adds 10 test blocks to the blocks array
      */
@@ -338,9 +374,7 @@ class BlockController {
             }
         }
     }
-
 }
-
 /**
  * Exporting the BlockController class
  * @param {*} app 
