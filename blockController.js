@@ -10,6 +10,8 @@ const bitcoin = require('bitcoinjs-lib');
 const bitcoinMessage = require('bitcoinjs-message');
 const hex2ascii = require('hex2ascii');
 let winston = require('winston');
+let mempool = new Map();
+let timeoutRequests = new Map();
 const levels = { 
     error: 0, 
     warn: 1, 
@@ -53,9 +55,7 @@ class BlockController {
         this.app = app;
         this.app.use(helmet());
         this.app.use(compression());
-        this.mempool = new Map();
-        // this.mempool.set("address",'138rs99UXekmmBMuHCpQ8PriTFun64AC2T');
-       this.timeoutRequests = new Map();
+
        this.registerStar = true;
        this.validationWindow = 0;
        this.status = {};
@@ -109,7 +109,7 @@ class BlockController {
         });
     }
     verifyAddressRequest(address){
-        return (this.mempool.get('address') == address) ? true : false ;
+        return (mempool.get('address') == address) ? true : false ;
     }
     /**
      * Implement a POST Endpoint to add a new Block, url: "/api/block"
@@ -154,7 +154,8 @@ class BlockController {
         });
     }
         removeValidationRequest(wallet){
-        this.timeoutRequests.delete(wallet);
+        timeoutRequests.delete(wallet);
+        mempool.delete(wallet);
     }
     validRequest(){
         this.app.post("/message-signature/validate", (req, res)=>{
@@ -219,8 +220,8 @@ class BlockController {
     }
     validateRequestByWallet(req){
    let signature = req.body.signature;
-   let message =  `${req.body.address}:${this.getTimebyWallet(req.body.address)}:starRegistry`;
-    let address = req.body.address;
+   let address = req.body.address;
+   let message =  `${address}:${this.getTimebyWallet(address)}:starRegistry`;
    let requestTimeStamp = this.getTimebyWallet(address);
    let isValid = bitcoinMessage.verify(message, address, signature);
    this.registerStar = true;
@@ -232,16 +233,16 @@ class BlockController {
    messageSignature: 'valid'
   };
 
-    (isValid) ?this.mempool.set(address,this.status ):'';
+    (isValid) ? mempool.set(address,this.status ):'';
      
     }
-    setTimeOut(req){
-       let timeElapse = parseFloat(new Date().getTime().toString().slice(0,-3)) - parseFloat(this.getTimebyWallet(req.body.address));
+    setTimeOut(address){
+       let timeElapse = parseFloat(new Date().getTime().toString().slice(0,-3)) - parseFloat(this.getTimebyWallet(address));
        let timeLeft = (TimeoutRequestsWindowTime/1000) - timeElapse;
-       req.validationWindow = timeLeft;
+       this.validationWindow = timeLeft;
         setTimeout(function(){
-            this.timeoutRequests.delete(req.body.address);
-            //  this.removeValidationRequest(req.body.address); 
+            timeoutRequests.delete(address);
+            console.log(`requestValidation deleted ${address}`);
             },
              TimeoutRequestsWindowTime 
              );
@@ -263,7 +264,7 @@ class BlockController {
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
            let result = this.addRequestValidation(req.body.address);
            if(result == 'added'){
-            this.setTimeOut(req);
+            this.setTimeOut(req.body.address);
             res.send(this.requestObject(req));
            }
            else{
@@ -282,7 +283,7 @@ class BlockController {
     }
     getTimebyWallet(wallet){
         let time = 0;
-        this.timeoutRequests.forEach((value, key, map)=>{
+        timeoutRequests.forEach((value, key, map)=>{
           if(key == wallet){
              time = value; 
           }
@@ -292,7 +293,7 @@ class BlockController {
     AddressExist(wallet){
         
         let exist = false;
-      this.mempool.forEach((value, key, map)=> {
+        mempool.forEach((value, key, map)=> {
         if(value == wallet){
             exist = true;
            }
@@ -303,8 +304,8 @@ class BlockController {
     addRequestValidation(wallet){
         let search = this.AddressExist(wallet);
         if(!search){
-        this.mempool.set("address",wallet);
-        this.timeoutRequests.set(wallet,new Date().getTime().toString().slice(0,-3));
+        mempool.set("address",wallet);
+        timeoutRequests.set(wallet,new Date().getTime().toString().slice(0,-3));
         return 'added';
     }
     else{
