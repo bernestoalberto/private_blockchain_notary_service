@@ -1,5 +1,5 @@
 const SHA256 = require('crypto-js/sha256');
-let BlockChain = require('./blockChain');
+const BlockChain = require('./blockChain');
 let empty = require('is-empty');
 let cookieSession = require('cookie-session');
 let helmet = require('helmet');
@@ -10,6 +10,9 @@ const bitcoin = require('bitcoinjs-lib');
 const bitcoinMessage = require('bitcoinjs-message');
 const hex2ascii = require('hex2ascii');
 let winston = require('winston');
+let walletTime = 0;
+let timer;
+ let validationWindow = 0;
 let mempool = new Map();
 let timeoutRequests = new Map();
 const levels = { 
@@ -57,7 +60,6 @@ class BlockController {
         this.app.use(compression());
 
        this.registerStar = true;
-       this.validationWindow = 0;
        this.status = {};
         this.getBlockByIndex();
         this.postNewBlock();
@@ -167,7 +169,8 @@ class BlockController {
             res.setHeader('Conection', 'close');
             res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/message-signature/validate', secure: true });
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
-            this.validateRequestByWallet(req);
+        
+            if(this.validateRequestByWallet(req)){
             let timeOut = this.getTimebyWallet(req.body.address);
             this.removeValidationRequest(req.body.address); 
              res.send(
@@ -177,10 +180,15 @@ class BlockController {
                     "address": req.body.address,
                     "requestTimeStamp": timeOut,
                     "message": `${req.body.address}:${timeOut}:starRegistry`,
-                    "validationWindow": 200,
+                    "validationWindow": validationWindow,
                     "messageSignature": true
                 }
             });
+          }
+          else{
+              res.send('Address not valid or has expired. Please send a new request validation');
+        
+               }
         });             
         }
     getStarByTokenId(){
@@ -209,44 +217,59 @@ class BlockController {
         });
     }
     requestObject (req){
-        this.validationWindow = req.validationWindow;
         let time = this.getTimebyWallet(req.body.address);
       return  {
             "walletAddress": req.body.address,
             "requestTimeStamp": time,
             "message": `${req.body.address}:${time}:starRegistry`,
-            "validationWindow": req.validationWindow
+            "validationWindow": validationWindow
         };
     }
     validateRequestByWallet(req){
-   let signature = req.body.signature;
    let address = req.body.address;
-   let message =  `${address}:${this.getTimebyWallet(address)}:starRegistry`;
-   let requestTimeStamp = this.getTimebyWallet(address);
+   if(this.AddressExist(address)){
+   let signature = req.body.signature;
+   let timew = this.getTimebyWallet(address);
+   let message =  `${address}:${timew}:starRegistry`;
+   let requestTimeStamp = timew;
    let isValid = bitcoinMessage.verify(message, address, signature);
+   if(isValid){
    this.registerStar = true;
    this.status = {
    address: address,
    requestTimeStamp: requestTimeStamp,
    message: message,
-   validationWindow: this.validationWindow,
+   validationWindow: validationWindow,
    messageSignature: 'valid'
   };
-
-    (isValid) ? mempool.set(address,this.status ):'';
-     
+    mempool.set(address,this.status);
+    return true;
+}
+else{
+return false;
+}
+    
+   }
+  else{
+     return false;
+  }     
     }
-    setTimeOut(address){
-       let timeElapse = parseFloat(new Date().getTime().toString().slice(0,-3)) - parseFloat(this.getTimebyWallet(address));
-       let timeLeft = (TimeoutRequestsWindowTime/1000) - timeElapse;
-       this.validationWindow = timeLeft;
-        setTimeout(function(){
-            timeoutRequests.delete(address);
-            console.log(`requestValidation deleted ${address}`);
-            },
-             TimeoutRequestsWindowTime 
-             );
 
+    setTimeOut(address){
+        walletTime = parseFloat(this.getTimebyWallet(address));
+      var interval = setInterval(function(){
+            let timeElapse = parseFloat(new Date().getTime().toString().slice(0,-3)) - walletTime;
+             validationWindow= (TimeoutRequestsWindowTime/1000) - timeElapse
+            console.log(validationWindow);
+            
+        },1000);
+        setTimeout(function(){
+            clearInterval(interval);
+            validationWindow=300;
+            timeoutRequests.delete(address);
+            mempool.delete(address);
+            console.log(`requestValidation deleted ${address}`);
+            },TimeoutRequestsWindowTime);
     }
     /**
      * Implement a POST Endpoint -Users start out by submitting a validation request , url: "/api/requestValidation"
@@ -264,17 +287,19 @@ class BlockController {
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
            let result = this.addRequestValidation(req.body.address);
            if(result == 'added'){
+            validationWindow = 300;
             this.setTimeOut(req.body.address);
             res.send(this.requestObject(req));
            }
            else{
+            console.log(`The address ${req.body.address} exist  on the mempool `);
                let interval = parseFloat(new Date().getTime().toString().slice(0,-3)) - parseFloat(this.getTimebyWallet(req.body.address)) ;
             res.send(
                 {
                     "address": req.body.address,
                     "requestTimeStamp": this.getTimebyWallet(req.body.address),
                     "message": `${req.body.address}:${this.getTimebyWallet(req.body.address)}:starRegistry`,
-                    "validationWindow": 300 -  interval
+                    "validationWindow":   validationWindow
                 }
             );
            }
@@ -290,11 +315,11 @@ class BlockController {
         });
         return time;
     }
+
     AddressExist(wallet){
-        
         let exist = false;
         mempool.forEach((value, key, map)=> {
-        if(value == wallet){
+        if(key == wallet){
             exist = true;
            }
            
@@ -304,7 +329,8 @@ class BlockController {
     addRequestValidation(wallet){
         let search = this.AddressExist(wallet);
         if(!search){
-        mempool.set("address",wallet);
+        mempool.set(wallet,"");
+        console.log(`added to the mempool the address- ${wallet}`);
         timeoutRequests.set(wallet,new Date().getTime().toString().slice(0,-3));
         return 'added';
     }

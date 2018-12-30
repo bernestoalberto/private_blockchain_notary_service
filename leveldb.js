@@ -121,14 +121,14 @@ getStarByToken(token) {
 // Get block by address
 getBlockByWalletAddress(address) {
   // let self = this;
-  let block = null;
+  let block = [];
   return new Promise(function(resolve, reject){
       db.createReadStream()
       .on('data', function (data) {
         data = JSON.parse(data.value);
           if(data.body.address === address){
             data.body.star.storyDecoded = hex2ascii(data.body.star.story);
-              block = data;
+              block.push(data);
           }
       })
       .on('error', function (err) {
