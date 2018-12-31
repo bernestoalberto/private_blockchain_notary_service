@@ -234,7 +234,7 @@ class BlockController {
    let requestTimeStamp = timew;
    let isValid = bitcoinMessage.verify(message, address, signature);
    if(isValid){
-   this.registerStar = true;
+   this.registerStar = isValid;
    this.status = {
    address: address,
    requestTimeStamp: requestTimeStamp,
@@ -332,7 +332,7 @@ return false;
         mempool.set(wallet,"");
         console.log(`added to the mempool the address- ${wallet}`);
         timeoutRequests.set(wallet,new Date().getTime().toString().slice(0,-3));
-        return 'added';
+               return 'added';
     }
     else{
         return wallet;
