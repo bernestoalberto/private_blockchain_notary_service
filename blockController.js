@@ -14,6 +14,7 @@ let walletTime = 0;
 let timer;
  let validationWindow = 0;
 let mempool = new Map();
+mempool.set("138rs99UXekmmBMuHCpQ8PriTFun64AC2T","138rs99UXekmmBMuHCpQ8PriTFun64AC2T");
 let timeoutRequests = new Map();
 const levels = { 
     error: 0, 
@@ -89,6 +90,7 @@ class BlockController {
                  this.blockchain.getBlock(req.params.index)
                  .then((block)=>{
                      block = JSON.parse(block);
+                     block.body.star.storyDecoded = block.body.star.story;
                      block.body.star.story = hex2ascii(block.body.star.story);
                      block = JSON.stringify(block);
                     res.end(block);
@@ -111,7 +113,7 @@ class BlockController {
         });
     }
     verifyAddressRequest(address){
-        return (mempool.get('address') == address) ? true : false ;
+        return (mempool.get(address) == address) ? true : false ;
     }
     /**
      * Implement a POST Endpoint to add a new Block, url: "/api/block"
@@ -169,10 +171,9 @@ class BlockController {
             res.setHeader('Conection', 'close');
             res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/message-signature/validate', secure: true });
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
-        
             if(this.validateRequestByWallet(req)){
             let timeOut = this.getTimebyWallet(req.body.address);
-            this.removeValidationRequest(req.body.address); 
+            timeoutRequests.delete(wallet); 
              res.send(
                  {
                 "registerStar": this.registerStar,
@@ -267,7 +268,6 @@ return false;
             clearInterval(interval);
             validationWindow=300;
             timeoutRequests.delete(address);
-            mempool.delete(address);
             console.log(`requestValidation deleted ${address}`);
             },TimeoutRequestsWindowTime);
     }
@@ -329,7 +329,7 @@ return false;
     addRequestValidation(wallet){
         let search = this.AddressExist(wallet);
         if(!search){
-        mempool.set(wallet,"");
+        mempool.set(wallet,wallet);
         console.log(`added to the mempool the address- ${wallet}`);
         timeoutRequests.set(wallet,new Date().getTime().toString().slice(0,-3));
                return 'added';
