@@ -173,7 +173,7 @@ class BlockController {
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
             if(this.validateRequestByWallet(req)){
             let timeOut = this.getTimebyWallet(req.body.address);
-            timeoutRequests.delete(wallet); 
+            timeoutRequests.delete(req.body.address); 
              res.send(
                  {
                 "registerStar": this.registerStar,
