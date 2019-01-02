@@ -113,7 +113,7 @@ class BlockController {
         });
     }
     verifyAddressRequest(address){
-        return (mempool.get(address) == address) ? true : false ;
+        return (mempool.get(address).address == address) ? true : false ;
     }
     /**
      * Implement a POST Endpoint to add a new Block, url: "/api/block"
