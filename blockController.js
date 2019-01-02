@@ -14,7 +14,6 @@ let walletTime = 0;
 let timer;
  let validationWindow = 0;
 let mempool = new Map();
-mempool.set("138rs99UXekmmBMuHCpQ8PriTFun64AC2T","138rs99UXekmmBMuHCpQ8PriTFun64AC2T");
 let timeoutRequests = new Map();
 const levels = { 
     error: 0, 
@@ -90,8 +89,7 @@ class BlockController {
                  this.blockchain.getBlock(req.params.index)
                  .then((block)=>{
                      block = JSON.parse(block);
-                     block.body.star.storyDecoded = block.body.star.story;
-                     block.body.star.story = hex2ascii(block.body.star.story);
+                     block.body.star.storyDecoded = hex2ascii(block.body.star.story)
                      block = JSON.stringify(block);
                     res.end(block);
                  })
@@ -113,7 +111,9 @@ class BlockController {
         });
     }
     verifyAddressRequest(address){
-        return (mempool.get(address).address == address) ? true : false ;
+        return (address) ?
+         (mempool.get(address) == address) ? true : false: false;
+     ;
     }
     /**
      * Implement a POST Endpoint to add a new Block, url: "/api/block"
@@ -141,8 +141,8 @@ class BlockController {
                };
                 this.blockchain.addBlock(body).then((block)=>{
                     block = JSON.parse(block);
-                    block.body.star.storyDecoded = hex2ascii(block.body.star.story);
                     block = JSON.stringify(block);
+                    this.removeValidationRequest();
                     res.send(block);
                 }).catch((error)=>{
                     console.log(error);
@@ -346,18 +346,18 @@ return false;
      */
 
     getBlockByHash(){
-        // this.app.post("/stars/hash/:hash", (req, res)=>{
-        this.app.get("/stars/hash/:hash", (req, res)=>{
-            console.log('Requested /stars/hash/');
-            if (empty(req.params.hash)) return res.sendStatus(400).end();
+        this.app.get("/stars/hash:HASH", (req, res)=>{
+            console.log('Requested /stars/hash:[HASH]');
+            req.params.HASH=req.params.HASH.replace(':', '');
+            if (empty(req.params.HASH)) return res.sendStatus(400).end();
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.setHeader('cache-control', 'no-cache');
             res.setHeader('Content-Length', '238');
             res.setHeader('Conection', 'close');
-            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/stars/hash/:hash', secure: true });
+            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/stars/hash:[HASH]', secure: true });
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
-            this.blockchain.getBlockByHash(req.params.hash).then((block)=>{
-               (block) ?res.send(block): res.send(`Block not found with hash ${req.params.hash} criteria`);
+            this.blockchain.getBlockByHash(req.params.HASH).then((block)=>{
+               (block) ?res.send(block): res.send(`Block not found with hash ${req.params.HASH} criteria`);
             }).catch((error)=>{
                 console.log(error);
                  res.send('There was an issue with your request. Please try again later');
@@ -368,17 +368,18 @@ return false;
         });
     }
     getBlockByWalletAddress(){
-        this.app.get("/stars/address/:address", (req, res)=>{
-            console.log('Requested /stars/address/:address');
+        this.app.get("/stars/address:address", (req, res)=>{
+            console.log('Requested /stars/address:[address]');
+            req.params.address=req.params.address.replace(':', '');
             if (empty(req.params.address)) return res.sendStatus(400).end();
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.setHeader('cache-control', 'no-cache');
             res.setHeader('Content-Length', '238');
             res.setHeader('Conection', 'close');
-            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/stars/address/:address', secure: true });
+            res.cookie('eb', 'gb', { domain: '.eabonet.com', path: '/stars/address:[address]', secure: true });
             res.cookie('blockchain', '1', { maxAge: 900000, httpOnly: true });
-            this.blockchain.getBlockByWalletAddress(req.params.address).then((block)=>{
-                (block) ?res.send(block): res.send(`Block not found with wallet address ${req.params.address} criteria`);
+            this.blockchain.getBlockByWalletAddress(req.params.ADDRESS).then((block)=>{
+                (block) ?res.send(block): res.send(`Block not found with wallet address ${req.params.ADDRESS} criteria`);
             }).catch((error)=>{
                 console.log(error);
                  res.send('There was an issue with your request. Please try again later');
